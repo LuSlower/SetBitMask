@@ -1,2 +1,2 @@
 # SetBitMask
-cree máscaras de hasta 64 bits de una forma muy eficiente
+cree máscaras de hasta 64 bits en big y litle endian de forma muy fácil
