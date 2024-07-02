@@ -3,5 +3,6 @@
 
 cree máscaras de hasta 64 bits de forma muy fácil
 
-![image](https://github.com/LuSlower/SetBitMask/assets/148411728/d373046f-2838-4992-bbe9-0c67e33cc806)
+![image](https://github.com/LuSlower/SetBitMask/assets/148411728/b922822b-25a0-4667-a2b7-258b6d909cf2)
+
 
