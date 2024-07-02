@@ -37,9 +37,6 @@ function Console
 
 Add-Type -AssemblyName System.Windows.Forms
 
-# bits por defecto
-$global:desiredLength = 32
-
 function Convert-HexToDec ($hex) {
     try {
         if ([string]::IsNullOrEmpty($hex)) {
@@ -79,40 +76,21 @@ function Convert-HexToBin ($hex) {
         # Convertir el hex a binario
         $bin = [Convert]::ToString([Convert]::ToInt64($hex, 16), 2)
 
-        # Calcular cuántos ceros se deben agregar
-        $missingZeros = $desiredLength - $bin.Length
+        if ($global:lzeros) {
+            # Calcular la longitud esperada del binario (4 bits por cada dígito hexadecimal)
+            $desiredLength = $hex.Length * 4
 
-        # Construir el binario con ceros a la izquierda
-        $binary = $bin + ('0' * $missingZeros)
-
-        return $binary
-    } catch {
-        return
-    }
-}
-
-function Convert-DecToBin ($dec) {
-    try {
-        if ([string]::IsNullOrEmpty($dec)) {
-            throw "Input string is empty or null."
+            # Asegurar que el binario tenga la longitud esperada
+            $bin = $bin.PadLeft($desiredLength, '0')
         }
 
-        # Convertir el decimal a binario
-        $bin = [Convert]::ToString([Convert]::ToInt64($dec, 16), 2)
-
-        # Calcular cuántos ceros se deben agregar
-        $missingZeros = $desiredLength - $bin.Length
-
-        # Construir el binario con ceros a la izquierda
-        $binary = $bin + ('0' * $missingZeros)
-
-        return $binary
+        return $bin
     } catch {
         return
     }
 }
 
-# Función para convertir de Binario a Decimal
+
 function Convert-BinToDec ($bin) {
     try {
         if ([string]::IsNullOrEmpty($bin)) {
@@ -144,7 +122,7 @@ function Update-Values {
         $hex = Convert-DecToHex $value
         if ($hex -ne "") {
             $textBoxHex.Text = $hex
-            $textBoxBinary.Text = Convert-DecToBin $value
+            $textBoxBinary.Text = Convert-HexToBin $hex
             Update-BitPairs -value $textBoxBinary.Text
         }
     } elseif ($source -eq 'Binary') {
@@ -299,31 +277,22 @@ $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
 # crear los pares de bits
 Create-BitGroups -numGroups 32 -form $form
 
-# establecer 32/64 bits
-$rbtn32 = New-Object System.Windows.Forms.RadioButton
-$rbtn32.Text = "32 bits"
-$rbtn32.AutoSize = $true
-$rbtn32.Location = New-Object System.Drawing.Point(20, 290)
-$rbtn32.Checked = $true  # Por defecto seleccionado
-$rbtn32.Add_CheckedChanged({
-    if ($rbtn32.Checked) {
-        $global:desiredLength = 32
-        Update-Values -source 'Hex' -value $textBoxHex.Text
+# leer ceros a la izquierda
+$global:lzeros = $false
+$chkbits = New-Object System.Windows.Forms.CheckBox
+$chkbits.Text = "Leading Zeros Hex"
+$chkbits.AutoSize = $true
+$chkbits.Location = New-Object System.Drawing.Point(20, 300)
+$chkbits.Add_CheckedChanged({
+    if ($chkbits.Checked) {
+        $global:lzeros = $true
+    } else {
+        $global:lzeros = $false
     }
-})
-$form.Controls.Add($rbtn32)
 
-$rbtn64 = New-Object System.Windows.Forms.RadioButton
-$rbtn64.Text = "64 bits"
-$rbtn64.AutoSize = $true
-$rbtn64.Location = New-Object System.Drawing.Point(20, 315)
-$rbtn64.Add_CheckedChanged({
-    if ($rbtn64.Checked) {
-        $global:desiredLength = 64
-        Update-Values -source 'Hex' -value $textBoxHex.Text
-    }
+    Update-Values -source 'Hex' -value $textBoxHex.Text
 })
-$form.Controls.Add($rbtn64)
+$form.Controls.Add($chkbits)
 
 # valor hex
 $labelHex = New-Object System.Windows.Forms.Label
