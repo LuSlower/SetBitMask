@@ -83,7 +83,7 @@ function Convert-HexToBin ($hex) {
         $missingZeros = $desiredLength - $bin.Length
 
         # Construir el binario con ceros a la izquierda
-        $binary = ('0' * $missingZeros) + $bin
+        $binary = $bin + ('0' * $missingZeros)
 
         return $binary
     } catch {
@@ -104,7 +104,7 @@ function Convert-DecToBin ($dec) {
         $missingZeros = $desiredLength - $bin.Length
 
         # Construir el binario con ceros a la izquierda
-        $binary = ('0' * $missingZeros) + $bin
+        $binary = $bin + ('0' * $missingZeros)
 
         return $binary
     } catch {
