@@ -34,6 +34,11 @@ function Console
 
 Add-Type -AssemblyName System.Windows.Forms
 
+# config inicial
+$global:bigendian = $true
+$global:lzeros = $true
+$global:desiredLength = 16
+
 function Convert-HexToDec ($hex) {
     try {
         if ([string]::IsNullOrEmpty($hex)) {
@@ -334,11 +339,9 @@ $form.MaximizeBox = $false
 $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
 
 # crear los pares de bits
-$global:desiredLength = 16
 Create-BitGroups -numGroups 16 -form $form
 
 # leer ceros a la izquierda
-$global:lzeros = $true
 $chkbits = New-Object System.Windows.Forms.CheckBox
 $chkbits.Text = "Leading Zeros Hex"
 $chkbits.AutoSize = $true
@@ -372,7 +375,6 @@ $chk64.Add_CheckedChanged({
 $form.Controls.Add($chk64)
 
 # Checkbox para cambiar de Little a Big Endian
-$global:bigendian = $true
 $chkendian = New-Object System.Windows.Forms.CheckBox
 $chkendian.Text = "Big Endian"
 $chkendian.AutoSize = $true
