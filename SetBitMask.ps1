@@ -37,7 +37,7 @@ Add-Type -AssemblyName System.Windows.Forms
 function Convert-HexToDec ($hex) {
     try {
         if ([string]::IsNullOrEmpty($hex)) {
-            throw "Input string is empty or null."
+            return $hex
         }
 
         # Convertir el hex a un número decimal
@@ -52,8 +52,9 @@ function Convert-HexToDec ($hex) {
 
 function Convert-DecToHex ($dec) {
     try {
+
         if ([string]::IsNullOrEmpty($dec)) {
-            throw "Input string is empty or null."
+            return $dec
         }
 
         # Convertir el decimal a hexadecimal
@@ -64,10 +65,42 @@ function Convert-DecToHex ($dec) {
     }
 }
 
+function Convert-DecToBin ($dec) {
+    try {
+
+        if ([string]::IsNullOrEmpty($dec)) {
+            return $dec
+        }
+
+        # Convertir el número decimal a binario
+         $bin = [Convert]::ToString($dec, 2)
+
+        return $bin
+    }
+    catch {
+        return
+    }
+}
+
+function Convert-BinToDec ($bin) {
+    try {
+
+        if ([string]::IsNullOrEmpty($bin)) {
+            return $bin
+        }
+
+        # Convertir el binario a decimal
+        return [Convert]::ToInt64($bin, 2)
+    } catch {
+        return
+    }
+}
+
 function Convert-HexToBin ($hex) {
     try {
+
         if ([string]::IsNullOrEmpty($hex)) {
-            throw "Input string is empty or null."
+            return $hex
         }
 
         # Convertir el hex a binario
@@ -87,16 +120,28 @@ function Convert-HexToBin ($hex) {
     }
 }
 
-
-function Convert-BinToDec ($bin) {
+function Convert-BinToHex ($bin) {
     try {
         if ([string]::IsNullOrEmpty($bin)) {
-            throw "Input string is empty or null."
+            return $bin
         }
 
-        # Convertir el binario a decimal
-        return [Convert]::ToInt64($bin, 2)
-    } catch {
+        # Convertir la cadena binaria a un número entero
+        $dec = [Convert]::ToInt64($bin, 2)
+
+        # Convertir a hexadecimal sin ceros a la izquierda
+        $hex = "{0:X}" -f $dec
+
+        if ($global:lzeros) {
+            # Calcular la longitud esperada del binario (4 bits por cada dígito hexadecimal)
+            $desiredLength = [math]::Ceiling($bin.Length / 4.0)
+            # Asegurar que el hexadecimal tenga la longitud esperada con ceros a la izquierda
+            $hex = $hex.PadLeft($desiredLength, '0')
+        }
+
+        return $hex
+    }
+    catch {
         return
     }
 }
@@ -109,27 +154,17 @@ function Update-Values {
     )
 
     if ($source -eq 'Hex') {
-        $dec = Convert-HexToDec $value
-        if ($dec -ne "") {
-            $textBoxDec.Text = $dec
-            $textBoxBinary.Text = Convert-HexToBin $value
+            $textBoxDec.Text = Convert-HexToDec -hex $value
+            $textBoxBinary.Text = Convert-HexToBin -hex $value
             Update-BitPairs -value $textBoxBinary.Text
-        }
     } elseif ($source -eq 'Dec') {
-        $hex = Convert-DecToHex $value
-        if ($hex -ne "") {
-            $textBoxHex.Text = $hex
-            $textBoxBinary.Text = Convert-HexToBin $hex
+            $textBoxHex.Text = Convert-DecToHex -dec $value
+            $textBoxBinary.Text = Convert-DecToBin -dec $value
             Update-BitPairs -value $textBoxBinary.Text
-        }
     } elseif ($source -eq 'Binary') {
-        $dec = Convert-BinToDec $value
-        if ($dec -ne "") {
-            $textBoxDec.Text = $dec
-            $hex = Convert-DecToHex $dec
-            $textBoxHex.Text = $hex
+            $textBoxDec.Text = Convert-BinToDec -bin $value
+            $textBoxHex.Text = Convert-BinToHex -bin $value
             Update-BitPairs -value $value
-        }
     }
 }
 
@@ -171,6 +206,19 @@ function Create-BitGroups {
         [System.Windows.Forms.Form]$form
     )
 
+    # Limpiar los textbox anteriores si existen
+    foreach ($lpair in $global:labelPairs) {
+        $lpair.Dispose()
+    }
+
+    # Limpiar los textbox anteriores si existen
+    foreach ($pair in $global:textBoxPairs) {
+        $pair.Dispose()
+    }
+
+    $global:labelPairs.Clear()
+    $global:textBoxPairs.Clear()
+
     $left = 25
     $top = 30
     $bitWidth = 50
@@ -182,12 +230,25 @@ function Create-BitGroups {
         $labelIndex1 = $i * 2
         $labelIndex2 = $labelIndex1 + 1
 
+        # Ajustar los índices según el endianess seleccionado
+        if ($global:bigendian -and $global:desiredLength -eq 16) {
+            # Convertir a Big Endian (los índices se invierten)
+            $labelIndex1 = 31 - $labelIndex1
+            $labelIndex2 = 31 - $labelIndex2
+        } elseif ($global:bigendian -and $global:desiredLength -eq 32) {
+            # Mantener los índices normales para Little Endian
+            $labelIndex1 = 63 - $labelIndex1
+            $labelIndex2 = 63 - $labelIndex2
+        }
+
         # crear pares de bits
         $labelPair = New-Object System.Windows.Forms.Label
+        $labelPair.Name = "LabelPair_$i"
         $labelPair.Text = "${labelIndex1}:${labelIndex2}"
         $labelPair.AutoSize = $true
         $labelPair.Location = New-Object System.Drawing.Point($left, $top)
         $form.Controls.Add($labelPair)
+        $global:labelPairs.Add($labelPair)
 
         # Crear TextBox debajo de la etiqueta
         $textBoxPair = New-Object System.Windows.Forms.TextBox
@@ -208,7 +269,7 @@ function Create-BitGroups {
                 # Actualizar los TextBox de Binario, Decimal y Hexadecimal
                 $textBoxBinary.Text = $binaryValue
                 $textBoxDec.Text = Convert-BinToDec -bin $binaryValue
-                $textBoxHex.Text = Convert-DecToHex -dec $textBoxDec.Text
+                $textBoxHex.Text = Convert-BinToHex -bin $binaryValue
             }
             
             # Mover el foco al siguiente TextBox si el actual tiene un par de caracteres y está enfocado
@@ -240,7 +301,7 @@ function Create-BitGroups {
                 # Actualizar los TextBox de Binario, Decimal y Hexadecimal
                 $textBoxBinary.Text = $binaryValue
                 $textBoxDec.Text = Convert-BinToDec -bin $binaryValue
-                $textBoxHex.Text = Convert-DecToHex -dec $textBoxDec.Text
+                $textBoxHex.Text = Convert-BinToHex -bin $binaryValue
             }
         })
 
@@ -260,6 +321,7 @@ function Create-BitGroups {
 
 # lista global BitPairs
 $global:textBoxPairs = New-Object System.Collections.Generic.List[System.Windows.Forms.TextBox]
+$global:labelPairs = New-Object System.Collections.Generic.List[System.Windows.Forms.Label]
 
 # crear form
 Console -Hide
@@ -272,14 +334,16 @@ $form.MaximizeBox = $false
 $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
 
 # crear los pares de bits
-Create-BitGroups -numGroups 32 -form $form
+$global:desiredLength = 16
+Create-BitGroups -numGroups 16 -form $form
 
 # leer ceros a la izquierda
-$global:lzeros = $false
+$global:lzeros = $true
 $chkbits = New-Object System.Windows.Forms.CheckBox
 $chkbits.Text = "Leading Zeros Hex"
 $chkbits.AutoSize = $true
-$chkbits.Location = New-Object System.Drawing.Point(20, 300)
+$chkbits.Checked = $global:lzeros
+$chkbits.Location = New-Object System.Drawing.Point(40, 300)
 $chkbits.Add_CheckedChanged({
     if ($chkbits.Checked) {
         $global:lzeros = $true
@@ -290,6 +354,44 @@ $chkbits.Add_CheckedChanged({
     Update-Values -source 'Hex' -value $textBoxHex.Text
 })
 $form.Controls.Add($chkbits)
+
+# Checkbox modo de 64 bits
+$chk64 = New-Object System.Windows.Forms.CheckBox
+$chk64.Text = "64 bits"
+$chk64.AutoSize = $true
+$chk64.Location = New-Object System.Drawing.Point(190, 300)
+$chk64.Add_CheckedChanged({
+    if ($chk64.Checked) {
+        $global:desiredLength = 32
+    } else {
+        $global:desiredLength = 16
+    }
+        Create-BitGroups -numGroups $global:desiredLength -form $form
+        Update-Values -source 'Binary' -value $textBoxBinary.Text
+})
+$form.Controls.Add($chk64)
+
+# Checkbox para cambiar de Little a Big Endian
+$global:bigendian = $true
+$chkendian = New-Object System.Windows.Forms.CheckBox
+$chkendian.Text = "Big Endian"
+$chkendian.AutoSize = $true
+$chkendian.Checked = $global:bigendian
+$chkendian.Location = New-Object System.Drawing.Point(280, 300)
+$chkendian.Add_CheckedChanged({
+    if ($chkendian.Checked) {
+        $global:bigendian = $true
+    } else {
+        $global:bigendian = $false
+    }
+
+    # Recrear los bit groups con el nuevo endianess
+    Create-BitGroups -numGroups $global:desiredLength -form $form
+    Update-Values -source 'Binary' -value $textBoxBinary.Text
+})
+$form.Controls.Add($chkendian)
+
+
 
 # valor hex
 $labelHex = New-Object System.Windows.Forms.Label
