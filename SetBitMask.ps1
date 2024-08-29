@@ -35,7 +35,7 @@ function Console
 Add-Type -AssemblyName System.Windows.Forms
 
 # config inicial
-$global:bigendian = $true
+$global:lsb = $true
 $global:lzeros = $true
 $global:desiredLength = 16
 
@@ -236,11 +236,11 @@ function Create-BitGroups {
         $labelIndex2 = $labelIndex1 + 1
 
         # Ajustar los índices según el endianess seleccionado
-        if ($global:bigendian -and $global:desiredLength -eq 16) {
+        if ($global:lsb -and $global:desiredLength -eq 16) {
             # Convertir a Big Endian (los índices se invierten)
             $labelIndex1 = 31 - $labelIndex1
             $labelIndex2 = 31 - $labelIndex2
-        } elseif ($global:bigendian -and $global:desiredLength -eq 32) {
+        } elseif ($global:lsb -and $global:desiredLength -eq 32) {
             # Mantener los índices normales para Little Endian
             $labelIndex1 = 63 - $labelIndex1
             $labelIndex2 = 63 - $labelIndex2
@@ -374,24 +374,24 @@ $chk64.Add_CheckedChanged({
 })
 $form.Controls.Add($chk64)
 
-# Checkbox para cambiar de Little a Big Endian
-$chkendian = New-Object System.Windows.Forms.CheckBox
-$chkendian.Text = "Big Endian"
-$chkendian.AutoSize = $true
-$chkendian.Checked = $global:bigendian
-$chkendian.Location = New-Object System.Drawing.Point(280, 300)
-$chkendian.Add_CheckedChanged({
-    if ($chkendian.Checked) {
-        $global:bigendian = $true
+# Checkbox para cambiar a lsb
+$chklsb = New-Object System.Windows.Forms.CheckBox
+$chklsb.Text = "MSB to LSB"
+$chklsb.AutoSize = $true
+$chklsb.Checked = $global:lsb
+$chklsb.Location = New-Object System.Drawing.Point(280, 300)
+$chklsb.Add_CheckedChanged({
+    if ($chklsb.Checked) {
+        $global:lsb = $true
     } else {
-        $global:bigendian = $false
+        $global:lsb = $false
     }
 
     # Recrear los bit groups con el nuevo endianess
     Create-BitGroups -numGroups $global:desiredLength -form $form
     Update-Values -source 'Binary' -value $textBoxBinary.Text
 })
-$form.Controls.Add($chkendian)
+$form.Controls.Add($chklsb)
 
 
 
