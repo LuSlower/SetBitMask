@@ -36,7 +36,7 @@ Add-Type -AssemblyName System.Windows.Forms
 
 # config inicial
 $global:lsb = $true
-$global:lzeros = $true
+$global:digitgroup = $true
 $global:desiredLength = 16
 
 function Convert-HexToDec ($hex) {
@@ -111,13 +111,14 @@ function Convert-HexToBin ($hex) {
         # Convertir el hex a binario
         $bin = [Convert]::ToString([Convert]::ToInt64($hex, 16), 2)
 
-        if ($global:lzeros) {
-            # Calcular la longitud esperada del binario (4 bits por cada dígito hexadecimal)
-            $desiredLength = $hex.Length * 4
+        $desiredLength = $hex.Length * 2
 
-            # Asegurar que el binario tenga la longitud esperada
-            $bin = $bin.PadLeft($desiredLength, '0')
+        if ($global:digitgroup) {
+            $desiredLength = $hex.Length * 4
+            
         }
+
+        $bin = $bin.PadLeft($desiredLength, '0')
 
         return $bin
     } catch {
@@ -137,12 +138,14 @@ function Convert-BinToHex ($bin) {
         # Convertir a hexadecimal sin ceros a la izquierda
         $hex = "{0:X}" -f $dec
 
-        if ($global:lzeros) {
-            # Calcular la longitud esperada del binario (4 bits por cada dígito hexadecimal)
+         $desiredLength = [math]::Ceiling($bin.Length / 2.0)
+
+        if ($global:digitgroup) {
             $desiredLength = [math]::Ceiling($bin.Length / 4.0)
-            # Asegurar que el hexadecimal tenga la longitud esperada con ceros a la izquierda
-            $hex = $hex.PadLeft($desiredLength, '0')
+            
         }
+
+        $hex = $hex.PadLeft($desiredLength, '0')
 
         return $hex
     }
@@ -237,11 +240,9 @@ function Create-BitGroups {
 
         # Ajustar los índices según el endianess seleccionado
         if ($global:lsb -and $global:desiredLength -eq 16) {
-            # Convertir a Big Endian (los índices se invierten)
             $labelIndex1 = 31 - $labelIndex1
             $labelIndex2 = 31 - $labelIndex2
         } elseif ($global:lsb -and $global:desiredLength -eq 32) {
-            # Mantener los índices normales para Little Endian
             $labelIndex1 = 63 - $labelIndex1
             $labelIndex2 = 63 - $labelIndex2
         }
@@ -252,6 +253,8 @@ function Create-BitGroups {
         $labelPair.Text = "${labelIndex1}:${labelIndex2}"
         $labelPair.AutoSize = $true
         $labelPair.Location = New-Object System.Drawing.Point($left, $top)
+        $labelPair.BackColor = [System.Drawing.Color]::Transparent
+        $labelPair.ForeColor = [System.Drawing.Color]::White
         $form.Controls.Add($labelPair)
         $global:labelPairs.Add($labelPair)
 
@@ -261,6 +264,9 @@ function Create-BitGroups {
         $textBoxPair.Location = New-Object System.Drawing.Point(($left + 1), ($top + 20))  # Espacio entre la etiqueta y el TextBox
         $textBoxPair.MaxLength = 2
         $textBoxPair.Name = "TextBoxPair_$i"
+        $textBoxPair.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+        $textBoxPair.BackColor = [System.Drawing.Color]::FromArgb(44, 44, 44)
+        $textBoxPair.ForeColor = [System.Drawing.Color]::White
 
         # Agregar el evento TextChanged
         $textBoxPair.Add_TextChanged({
@@ -289,6 +295,7 @@ function Create-BitGroups {
 
         $textBoxPair.Add_KeyDown({
             param($sender, $e)
+
             # Verificar si se presionó backspace
             if ($e.KeyCode -eq "Back") {
                 # Manejar la tecla de retroceso para borrar y mover el foco al TextBox anterior si es el primer carácter
@@ -307,6 +314,67 @@ function Create-BitGroups {
                 $textBoxBinary.Text = $binaryValue
                 $textBoxDec.Text = Convert-BinToDec -bin $binaryValue
                 $textBoxHex.Text = Convert-BinToHex -bin $binaryValue
+            }
+
+            # Verificar si se presionó Shift + Flecha Derecha
+            elseif ($e.KeyCode -eq [System.Windows.Forms.Keys]::Right) {
+                $nextIndex = [math]::Min($global:textBoxPairs.IndexOf($sender) + 1, $global:textBoxPairs.Count - 1)
+                $nextTextBox = $global:textBoxPairs[$nextIndex]
+                $nextTextBox.Focus()
+                $nextTextBox.SelectAll() # Seleccionar todo el texto en el siguiente TextBox
+                $e.Handled = $true
+            }
+
+            # Verificar si se presionó Shift + Flecha Izquierda
+            elseif ($e.KeyCode -eq [System.Windows.Forms.Keys]::Left) {
+                $prevIndex = [math]::Max($global:textBoxPairs.IndexOf($sender) - 1, 0)
+                $prevTextBox = $global:textBoxPairs[$prevIndex]
+                $prevTextBox.Focus()
+                $prevTextBox.SelectAll() # Seleccionar todo el texto en el TextBox anterior
+                $e.Handled = $true
+            }
+
+            if ($e.Control -and $e.KeyCode -eq [System.Windows.Forms.Keys]::Back) {
+                $textBox = $sender
+                $cursorPos = $textBox.SelectionStart
+
+                if ($cursorPos -gt 0) {
+                    $textBox.Text = $textBox.Text.Substring($cursorPos) # Mantiene solo el texto a la derecha del cursor
+                    $textBox.SelectionStart = 0 # Mueve el cursor al inicio del texto
+                    $e.Handled = $true
+                }
+            }
+
+            if ($e.Control -and $e.KeyCode -eq [System.Windows.Forms.Keys]::Back) {
+                foreach ($pair in $global:textBoxPairs) {
+                    $pair.Clear()
+                }
+    
+                # Regresar al TextBox en el índice 1, si existe
+                if ($global:textBoxPairs.Count -gt 1) {
+                    $global:textBoxPairs[0].Focus() 
+                    $global:textBoxPairs[0].SelectAll()
+                }
+
+                                # Actualizar $binaryValue con los valores actuales de todos los TextBox
+                $binaryValue = ""
+                foreach ($pair in $global:textBoxPairs) {
+                    $binaryValue += $pair.Text
+                }
+
+                # Actualizar los TextBox de Binario, Decimal y Hexadecimal
+                $textBoxBinary.Text = $binaryValue
+                $textBoxDec.Text = Convert-BinToDec -bin $binaryValue
+                $textBoxHex.Text = Convert-BinToHex -bin $binaryValue
+
+                $e.Handled = $true
+            }
+        })
+
+        $textBoxPair.Add_KeyPress({
+            param($sender, $e)
+            if ($e.KeyChar -ne '1' -and $e.KeyChar -ne '0' -and $e.KeyChar -ne [char]8) {
+                $e.Handled = $true
             }
         })
 
@@ -337,49 +405,73 @@ $form.Size = New-Object System.Drawing.Size(435, 485)
 $form.StartPosition = "CenterScreen"
 $form.MaximizeBox = $false
 $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
+$form.Add_Paint({
+    param (
+        [object]$sender,
+        [System.Windows.Forms.PaintEventArgs]$e
+    )
+    $rect = New-Object System.Drawing.Rectangle(0, 0, $sender.Width, $sender.Height)
+    $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+        $rect,
+        [System.Drawing.Color]::FromArgb(44, 44, 44),   # Color negro
+        [System.Drawing.Color]::FromArgb(99, 99, 99),# Color gris oscuro
+        [System.Drawing.Drawing2D.LinearGradientMode]::Vertical
+    )
+    $e.Graphics.FillRectangle($brush, $rect)
+})
 
 # crear los pares de bits
 Create-BitGroups -numGroups 16 -form $form
 
 # leer ceros a la izquierda
 $chkbits = New-Object System.Windows.Forms.CheckBox
-$chkbits.Text = "Leading Zeros Hex"
+$chkbits.Text = "DigitGroup"
 $chkbits.AutoSize = $true
-$chkbits.Checked = $global:lzeros
+$chkbits.Checked = $global:digitgroup
 $chkbits.Location = New-Object System.Drawing.Point(40, 300)
+$chkbits.BackColor = [System.Drawing.Color]::Transparent
+$chkbits.ForeColor = [System.Drawing.Color]::White
 $chkbits.Add_CheckedChanged({
     if ($chkbits.Checked) {
-        $global:lzeros = $true
+        $global:digitgroup = $true
     } else {
-        $global:lzeros = $false
+        $global:digitgroup = $false
     }
 
     Update-Values -source 'Hex' -value $textBoxHex.Text
 })
 $form.Controls.Add($chkbits)
 
-# Checkbox modo de 64 bits
+# Checkbox modo de bits
 $chk64 = New-Object System.Windows.Forms.CheckBox
-$chk64.Text = "64 bits"
+$chk64.Text = "BitMode"
 $chk64.AutoSize = $true
-$chk64.Location = New-Object System.Drawing.Point(190, 300)
-$chk64.Add_CheckedChanged({
-    if ($chk64.Checked) {
-        $global:desiredLength = 32
-    } else {
-        $global:desiredLength = 16
+$chk64.Location = New-Object System.Drawing.Point(170, 300)
+$chk64.ThreeState = $true
+$chk64.BackColor = [System.Drawing.Color]::Transparent
+$chk64.ForeColor = [System.Drawing.Color]::White
+$chk64.Add_CheckStateChanged({
+    if ($chk64.CheckState -eq [System.Windows.Forms.CheckState]::Checked) {
+        $global:desiredLength = 8  # Estado Unchecked -> 16 bits
+    } elseif ($chk64.CheckState -eq [System.Windows.Forms.CheckState]::Unchecked) {
+        $global:desiredLength = 16  # Estado Checked -> 32 bits
+    } elseif ($chk64.CheckState -eq [System.Windows.Forms.CheckState]::Indeterminate) {
+        $global:desiredLength = 32  # Estado Indeterminate -> 64 bits
     }
-        Create-BitGroups -numGroups $global:desiredLength -form $form
-        Update-Values -source 'Binary' -value $textBoxBinary.Text
+    Create-BitGroups -numGroups $global:desiredLength -form $form
+    Update-Values -source 'Binary' -value $textBoxBinary.Text
 })
 $form.Controls.Add($chk64)
 
+
 # Checkbox para cambiar a lsb
 $chklsb = New-Object System.Windows.Forms.CheckBox
-$chklsb.Text = "MSB to LSB"
+$chklsb.Text = "MsbToLsb"
 $chklsb.AutoSize = $true
 $chklsb.Checked = $global:lsb
 $chklsb.Location = New-Object System.Drawing.Point(280, 300)
+$chklsb.BackColor = [System.Drawing.Color]::Transparent
+$chklsb.ForeColor = [System.Drawing.Color]::White
 $chklsb.Add_CheckedChanged({
     if ($chklsb.Checked) {
         $global:lsb = $true
@@ -400,11 +492,16 @@ $labelHex = New-Object System.Windows.Forms.Label
 $labelHex.Text = "Hexadecimal"
 $labelHex.Size = New-Object System.Drawing.Size(70, 15)
 $labelHex.Location = New-Object System.Drawing.Point(10, 340)
+$labelHex.BackColor = [System.Drawing.Color]::Transparent
+$labelHex.ForeColor = [System.Drawing.Color]::White
 $form.Controls.Add($labelHex)
 
 $textBoxHex = New-Object System.Windows.Forms.TextBox
 $textBoxHex.Size = New-Object System.Drawing.Size(190, 10)
 $textBoxHex.Location = New-Object System.Drawing.Point(10, 360)
+$textBoxHex.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$textBoxHex.BackColor = [System.Drawing.Color]::FromArgb(44, 44, 44)
+$textBoxHex.ForeColor = [System.Drawing.Color]::White
 $textBoxHex.Add_KeyPress({
     param($sender, $e)
     if ((($e.KeyChar -lt '0' -or $e.KeyChar -gt '9') -and
@@ -428,6 +525,17 @@ $textBoxHex.Add_KeyDown({
         Update-Values -source 'Hex' -value $textBoxHex.Text
         $e.Handled = $true
     }
+
+    if ($e.Control -and $e.KeyCode -eq [System.Windows.Forms.Keys]::Back) {
+        $textBox = $sender
+        $cursorPos = $textBox.SelectionStart
+
+        if ($cursorPos -gt 0) {
+            $textBox.Text = $textBox.Text.Substring($cursorPos) # Mantiene solo el texto a la derecha del cursor
+            $textBox.SelectionStart = 0 # Mueve el cursor al inicio del texto
+            $e.Handled = $true
+        }
+    }
 })
 $textBoxHex.Add_TextChanged({
     if ($textBoxHex.Focused) {
@@ -441,11 +549,16 @@ $labelDec = New-Object System.Windows.Forms.Label
 $labelDec.Text = "Decimal"
 $labelDec.Size = New-Object System.Drawing.Size(70, 15)
 $labelDec.Location = New-Object System.Drawing.Point(215, 340)
+$labelDec.BackColor = [System.Drawing.Color]::Transparent
+$labelDec.ForeColor = [System.Drawing.Color]::White
 $form.Controls.Add($labelDec)
 
 $textBoxDec = New-Object System.Windows.Forms.TextBox
 $textBoxDec.Size = New-Object System.Drawing.Size(190, 10)
 $textBoxDec.Location = New-Object System.Drawing.Point(215, 360)
+$textBoxDec.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$textBoxDec.BackColor = [System.Drawing.Color]::FromArgb(44, 44, 44)
+$textBoxDec.ForeColor = [System.Drawing.Color]::White
 $textBoxDec.Add_KeyPress({
     param($sender, $e)
     if ($e.KeyChar -lt '0' -or $e.KeyChar -gt '9' -and
@@ -467,6 +580,17 @@ $textBoxDec.Add_KeyDown({
         Update-Values -source 'Dec' -value $textBoxDec.Text
         $e.Handled = $true
     }
+
+    if ($e.Control -and $e.KeyCode -eq [System.Windows.Forms.Keys]::Back) {
+        $textBox = $sender
+        $cursorPos = $textBox.SelectionStart
+
+        if ($cursorPos -gt 0) {
+            $textBox.Text = $textBox.Text.Substring($cursorPos) # Mantiene solo el texto a la derecha del cursor
+            $textBox.SelectionStart = 0 # Mueve el cursor al inicio del texto
+            $e.Handled = $true
+        }
+    }
 })
 $textBoxDec.Add_TextChanged({
     if ($textBoxDec.Focused) {
@@ -480,11 +604,16 @@ $labelBitmask = New-Object System.Windows.Forms.Label
 $labelBitmask.Text = "Binary"
 $labelBitmask.Size = New-Object System.Drawing.Size(70, 15)
 $labelBitmask.Location = New-Object System.Drawing.Point(10, 400)
+$labelBitmask.BackColor = [System.Drawing.Color]::Transparent
+$labelBitmask.ForeColor = [System.Drawing.Color]::White
 $form.Controls.Add($labelBitmask)
 
 $textBoxBinary = New-Object System.Windows.Forms.TextBox
 $textBoxBinary.Size = New-Object System.Drawing.Size(395, 10)
 $textBoxBinary.Location = New-Object System.Drawing.Point(10, 420)
+$textBoxBinary.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$textBoxBinary.BackColor = [System.Drawing.Color]::FromArgb(44, 44, 44)
+$textBoxBinary.ForeColor = [System.Drawing.Color]::White
 $textBoxBinary.MaxLength = 64 #64bits
 $textBoxBinary.Add_KeyDown({
     param($sender, $e)
@@ -509,6 +638,17 @@ $textBoxBinary.Add_KeyDown({
         $textBoxBinary.Paste()
         Update-Values -source 'Binary' -value $textBoxBinary.Text
         $e.Handled = $true
+    }
+
+    if ($e.Control -and $e.KeyCode -eq [System.Windows.Forms.Keys]::Back) {
+        $textBox = $sender
+        $cursorPos = $textBox.SelectionStart
+
+        if ($cursorPos -gt 0) {
+            $textBox.Text = $textBox.Text.Substring($cursorPos) # Mantiene solo el texto a la derecha del cursor
+            $textBox.SelectionStart = 0 # Mueve el cursor al inicio del texto
+            $e.Handled = $true
+        }
     }
 })
 $textBoxBinary.Add_TextChanged({
